@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Meeting Notes — Editor</title>
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Quill Rich Text Editor -->
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+
+  <style>
+    body { background: linear-gradient(180deg,#e6f0fb 0%, #d6dfe7 100%); }
+    .card { background: #fff; border-radius: 12px; padding: 1rem; box-shadow: 0 6px 18px rgba(20,35,60,0.06); border:1px solid rgba(20,35,60,0.04); }
+    .action-item { background: #fff7cc; padding: 0 2px; border-radius: 2px; }
+    .attendee-chip { background:#eef2ff; padding:6px 8px; border-radius:999px; display:inline-flex; gap:8px; align-items:center; border:1px solid #dbeafe; }
+    .topic-card { border:1px solid #e6eef7; border-radius:8px; padding:10px; background:#fbfdff; cursor:pointer; }
+    #topicEditor { height: 160px; }
+    .ql-toolbar.ql-snow { border-radius: 6px 6px 0 0; border: 1px solid #e6eef7; }
+    .ql-container.ql-snow { border-radius: 0 0 6px 6px; border: 1px solid #e6eef7; border-top: none; }
+    .ql-editor .action-item::before {
+  content: "★" !important;
+  margin-right: 4px;
+  color: #facc15 !important; /* Tailwind amber-400 */
+  font-weight: 700 !important;
+  display: inline-block;
+}
+  </style>
+</head>
+<body class="p-6">
+
+<div class="max-w-6xl mx-auto">
+
+  <header class="mb-6 flex items-center justify-between">
+  <div class="flex items-center gap-4">
+    <!-- CDU Logo Placeholder -->
+    <img id="cduLogoPage" src="https://raw.githubusercontent.com/markevansjrcityphila-Evansm1/CDU-Meeting-Notes/refs/heads/main/image.png" alt="CDU Logo" class="h-12 w-auto" />
+    <div>
+      <h1 class="text-2xl font-semibold">CDU Meeting Notes Generator</h1>
+      <p class="tiny mt-1">Fast meeting capture with rich text notes and automatically extracted action items.</p>
+    </div>
+  </div>
+  <button id="generateWordBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700">Generate Word Doc</button>
+</header>
+
+
+  <!-- ---------- Meeting Info + Topic Composer Row ---------- -->
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- Meeting Info -->
+    <div class="card">
+      <h2 class="font-semibold text-slate-700 mb-3">Meeting Info</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label class="block text-sm text-slate-600">Title</label>
+          <input id="meetingTitle" class="mt-1 w-full border rounded-md px-3 py-2" placeholder="Meeting title (optional)" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Date</label>
+          <input id="meetingDate" type="date" class="mt-1 w-full border rounded-md px-3 py-2" />
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Start Time</label>
+          <div class="flex gap-2 mt-1">
+  <select id="startHour" class="border rounded-md px-3 py-2"></select>
+  <select id="startMinute" class="border rounded-md px-3 py-2">
+    <option value="00">00</option>
+    <option value="15">15</option>
+    <option value="30">30</option>
+    <option value="45">45</option>
+  </select>
+  <select id="startAmPm" class="border rounded-md px-3 py-2">
+    <option value="AM">AM</option>
+    <option value="PM">PM</option>
+  </select>
+</div>
+        </div>
+        <div>
+          <label class="block text-sm text-slate-600">Duration</label>
+          <select id="duration" class="mt-1 w-full border rounded-md px-3 py-2"></select>
+        </div>
+      </div>
+
+      <div class="mt-4">
+        <label class="block text-sm text-slate-600">Attendees</label>
+        <div class="flex gap-2 mt-2">
+          <input id="attendeeInput" class="border rounded-md px-3 py-2 flex-1" placeholder="Type a name and press Add" />
+          <button id="addAttendeeBtn" class="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Add</button>
+        </div>
+        <div id="attendeesList" class="mt-3 flex flex-wrap gap-2"></div>
+      </div>
+    </div>
+
+    <!-- Topic Composer -->
+    <div class="card">
+      <div class="flex items-start justify-between">
+        <div>
+          <h2 class="font-semibold text-slate-700">Topic — Compose</h2>
+          <p class="tiny text-slate-600">Title, notes (rich text). Select text and click "Mark Action" to flag an action item.</p>
+        </div>
+        <div class="flex gap-2">
+          <button id="markActionBtn" class="px-3 py-2 bg-yellow-400 rounded-md hover:bg-yellow-500">Mark Action</button>
+          <button id="saveTopicBtn" class="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Save Topic</button>
+          <button id="clearTopicBtn" class="px-3 py-2 bg-slate-200 rounded-md hover:bg-slate-300">Clear</button>
+        </div>
+      </div>
+
+      <div class="mt-3">
+        <label class="block text-sm text-slate-600">Topic Title</label>
+        <input id="topicTitle" class="mt-1 w-full border rounded-md px-3 py-2" placeholder="Topic — give it a short title" />
+      </div>
+
+      <div class="mt-3">
+        <div id="toolbar">
+          <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button><button class="ql-underline"></button><button class="ql-strike"></button></span>
+          <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
+          <span class="ql-formats"><button class="ql-link"></button><button class="ql-clean"></button></span>
+        </div>
+        <div id="topicEditor" class="mt-1 bg-white rounded-md overflow-hidden"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- Topics + Action Items Row ---------- -->
+  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- Topics List -->
+    <div class="card">
+      <div class="flex items-center justify-between">
+        <h3 class="font-semibold text-slate-700">Topics</h3>
+        <div class="tiny text-slate-600">Click a card to edit</div>
+      </div>
+      <div id="topicsContainer" class="mt-3 space-y-2 max-h-[520px] overflow-auto"></div>
+    </div>
+
+    <!-- Action Items List -->
+    <div class="card">
+      <h3 class="font-semibold text-slate-700">Action Items</h3>
+      <div id="actionItemsList" class="space-y-2 max-h-[520px] overflow-auto"></div>
+      <div class="tiny mt-3 text-slate-600">Flag text in topic editor and click “Mark Action” → it'll appear here and in exports.</div>
+    </div>
+  </section>
+
+  <footer class="mt-6 tiny text-slate-600">Tip: select text and click “Mark Action” — you can edit topics and action items at any time.</footer>
+
+</div>
+
+<script>
+  // ---------- Utilities ----------
+  function uid(prefix='id'){ return prefix + Math.random().toString(36).slice(2,9); }
+  function escapeHtml(s){ return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
+  function stripHtmlPreview(html, max=120){ const tmp=document.createElement('div'); tmp.innerHTML=html; const txt=tmp.innerText||tmp.textContent||''; return txt.length>max?txt.slice(0,max)+'…':txt; }
+
+  // ---------- Meeting defaults ----------
+  const meetingDateEl = document.getElementById('meetingDate');
+  const meetingTitleEl = document.getElementById('meetingTitle');
+  const startHourEl = document.getElementById('startHour');
+  const startMinuteEl = document.getElementById('startMinute');
+  const durationEl = document.getElementById('duration');
+
+  for(let h=1; h<=12; h++){ 
+  const o=document.createElement('option'); 
+  o.value=o.textContent=String(h); 
+  startHourEl.appendChild(o); 
+}
+  for(let m=30;m<=480;m+=30){ const o=document.createElement('option'); o.value=String(m); o.textContent=m>=60?`${m/60} hr${m>60?'s':''}`:`${m} min`; durationEl.appendChild(o); }
+  durationEl.value='60';
+  (function(){ const d=new Date(); meetingDateEl.value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); const next=new Date(); next.setMinutes(Math.ceil(next.getMinutes()/15)*15); startHourEl.value=String(next.getHours()).padStart(2,'0'); startMinuteEl.value=String(next.getMinutes()).padStart(2,'0'); })();
+
+  // ---------- Attendees ----------
+  const attendees=[]; const attendeeInput=document.getElementById('attendeeInput'); const addAttendeeBtn=document.getElementById('addAttendeeBtn'); const attendeesList=document.getElementById('attendeesList');
+
+  function renderAttendees(){ attendeesList.innerHTML=''; attendees.forEach(a=>{ const chip=document.createElement('div'); chip.className='attendee-chip'; chip.innerHTML=`<span>${escapeHtml(a.name)}</span><button data-id="${a.id}" title="Remove" class="ml-2 text-slate-500">&times;</button>`; chip.querySelector('button').addEventListener('click',()=>removeAttendee(a.id)); attendeesList.appendChild(chip); }); }
+  function addAttendee(name){ const n=(name||'').trim(); if(!n) return; attendees.push({id:uid('att-'),name:n}); attendeeInput.value=''; renderAttendees(); renderActionItems(); }
+  function removeAttendee(id){ const idx=attendees.findIndex(a=>a.id===id); if(idx>=0) attendees.splice(idx,1); renderAttendees(); renderActionItems(); }
+  addAttendeeBtn.addEventListener('click',()=>addAttendee(attendeeInput.value));
+  attendeeInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); addAttendee(attendeeInput.value); } });
+
+  // ---------- Quill + Action blot ----------
+  const Inline = Quill.import('blots/inline');
+  class ActionBlot extends Inline {
+  static blotName = 'action';
+  static className = 'action-item';
+  static tagName = 'span';
+  static create(value) {
+    const node = super.create();
+    node.setAttribute('data-action', 'true');
+    // 🔹 Add a star in front for visual cue
+    node.innerHTML = '★ ' + (node.innerHTML || '');
+    return node;
+  }
+}
+  Quill.register(ActionBlot);
+  const quill=new Quill('#topicEditor',{ modules:{toolbar:'#toolbar'}, theme:'snow', placeholder:'Write notes here...' });
+
+  // ---------- Topics + Action Items ----------
+  const topics=[]; const actionItems=[]; let editingTopicId=null;
+  const topicTitleEl=document.getElementById('topicTitle');
+  const saveTopicBtn=document.getElementById('saveTopicBtn');
+  const clearTopicBtn=document.getElementById('clearTopicBtn');
+  const topicsContainer=document.getElementById('topicsContainer');
+  const actionItemsList=document.getElementById('actionItemsList');
+
+  function extractActionItemsFromHtml(html){ const tmp=document.createElement('div'); tmp.innerHTML=html; const items=[]; tmp.querySelectorAll('.action-item').forEach(n=>{ const text=n.innerText.trim(); if(text) items.push(text); }); return items; }
+
+ function saveTopic() {
+  const title = (topicTitleEl.value || '').trim();
+  const html = quill.root.innerHTML.trim();
+  if (!title && (!html || html === '')) {
+    alert('Please provide a topic title or notes.');
+    return;
+  }
+
+  const extracted = extractActionItemsFromHtml(html);
+
+  if (editingTopicId) {
+    const t = topics.find(x => x.id === editingTopicId);
+    if (!t) return;
+    t.title = title || '(untitled)';
+    t.html = html;
+
+    // Remove old action items for this topic
+    for (let i = actionItems.length - 1; i >= 0; i--)
+      if (actionItems[i].topicId === t.id) actionItems.splice(i, 1);
+
+    // Add updated ones
+    extracted.forEach(txt => {
+      actionItems.push({
+        id: uid('ai-'),
+        text: txt,
+        topicId: t.id,
+        assignedToId: null,
+        dueDate: ''
+      });
+    });
+
+    editingTopicId = null;
+
+  } else {
+    const id = uid('top-');
+    topics.push({
+      id,
+      title: title || '(untitled)',
+      html,
+      createdAt: new Date().toISOString()
+    });
+
+    extracted.forEach(txt => {
+      actionItems.push({
+        id: uid('ai-'),
+        text: txt,
+        topicId: id,
+        assignedToId: null,
+        dueDate: ''
+      });
+    });
+
+    // 🔹 FIX: Link any previously unsaved action items to this new topic
+    actionItems.forEach(ai => {
+      if (!ai.topicId || ai.topicId === 'unsaved') {
+        ai.topicId = id;
+        ai.topicTitle = title || '(untitled)';
+      }
+    });
+  }
+
+  topicTitleEl.value = '';
+  quill.setContents([]);
+  renderTopics();
+  renderActionItems();
+}
+
+saveTopicBtn.addEventListener('click', saveTopic);
+clearTopicBtn.addEventListener('click', () => {
+  editingTopicId = null;
+  topicTitleEl.value = '';
+  quill.setContents([]);
+});
+
+
+  function renderTopics(){ topicsContainer.innerHTML=''; if(topics.length===0){ topicsContainer.innerHTML='<div class="tiny text-slate-500">No topics yet — compose and save one.</div>'; return; } const grid=document.createElement('div'); grid.className='grid gap-2'; grid.style.gridTemplateColumns='repeat(auto-fit,minmax(220px,1fr))'; topics.forEach(t=>{ const card=document.createElement('div'); card.className='topic-card'; card.innerHTML=`<div class="flex items-start justify-between"><div><div class="font-semibold">Topic — ${escapeHtml(t.title)}</div><div class="tiny text-slate-600 mt-1">${stripHtmlPreview(t.html,120)}</div></div><div class="flex flex-col items-end gap-1"><button data-id="${t.id}" class="edit-topic tiny text-indigo-600">Edit</button><button data-id="${t.id}" class="delete-topic tiny text-red-600">Delete</button></div></div>`; card.querySelector('.edit-topic').addEventListener('click',()=>{ editingTopicId=t.id; topicTitleEl.value=t.title; quill.root.innerHTML=t.html; quill.focus(); window.scrollTo({top:0,behavior:'smooth'}); }); card.querySelector('.delete-topic').addEventListener('click',()=>{ if(!confirm('Delete topic and its action items?')) return; const idx=topics.findIndex(x=>x.id===t.id); if(idx>=0) topics.splice(idx,1); for(let i=actionItems.length-1;i>=0;i--) if(actionItems[i].topicId===t.id) actionItems.splice(i,1); renderTopics(); renderActionItems(); }); grid.appendChild(card); }); topicsContainer.appendChild(grid); }
+
+  function renderActionAssigneeOptions(){ return attendees.map(a=>`<option value="${a.id}">${escapeHtml(a.name)}</option>`).join(''); }
+
+function renderActionItems() {
+  actionItemsList.innerHTML = '';
+  if (actionItems.length === 0) {
+    actionItemsList.innerHTML = '<div class="tiny text-slate-500">No action items flagged yet.</div>';
+    return;
+  }
+
+  actionItems.forEach(ai => {
+    const row = document.createElement('div');
+    row.className = 'border rounded-md p-2 flex flex-col gap-2';
+
+    const topic = topics.find(t => t.id === ai.topicId);
+    row.innerHTML = `
+      <div class="flex items-start justify-between">
+        <div>
+          <div class="font-medium">${escapeHtml(ai.text)}</div>
+          <div class="tiny text-slate-600">
+            from: ${escapeHtml(ai.topicTitle || (topic ? topic.title : '(topic removed)'))}
+          </div>
+        </div>
+        <div class="flex gap-2">
+          <button data-id="${ai.id}" class="edit-ai tiny text-indigo-600">Edit</button>
+          <button data-id="${ai.id}" class="delete-ai tiny text-red-600">Delete</button>
+        </div>
+      </div>
+      <div class="flex gap-2 items-center">
+        <label class="tiny">Assign:</label>
+        <select data-id="${ai.id}" class="assign-select border rounded-md px-2 py-1">
+          <option value="">Unassigned</option>
+          ${renderActionAssigneeOptions()}
+        </select>
+        <label class="tiny ml-2">Due:</label>
+        <input data-id="${ai.id}" type="date" class="border rounded-md px-2 py-1" value="${ai.dueDate || ''}" />
+      </div>
+    `;
+
+    row.querySelector('.assign-select').value = ai.assignedToId || '';
+    row.querySelector('.assign-select').addEventListener('change', e => {
+      const id = e.target.getAttribute('data-id');
+      const item = actionItems.find(x => x.id === id);
+      if (item) item.assignedToId = e.target.value || null;
+    });
+
+    row.querySelector('input[type="date"]').addEventListener('change', e => {
+      const id = e.target.getAttribute('data-id');
+      const item = actionItems.find(x => x.id === id);
+      if (item) item.dueDate = e.target.value || '';
+    });
+
+    row.querySelector('.edit-ai').addEventListener('click', () => {
+      const item = actionItems.find(x => x.id === ai.id);
+      if (!item) return;
+
+      // 🔹 FIX: Handle missing topic with fallback
+      let t = topics.find(tt => tt.id === item.topicId);
+      if (!t && item.topicTitle) {
+        // Recreate temporary topic reference
+        t = { id: item.topicId, title: item.topicTitle, html: '' };
+      } else if (!t) {
+        alert('Topic no longer exists.');
+        return;
+      }
+
+      editingTopicId = t.id;
+      topicTitleEl.value = t.title;
+      quill.root.innerHTML = t.html;
+      quill.focus();
+
+      const nodes = quill.root.querySelectorAll('.action-item');
+      for (let n of nodes) {
+        if (n.innerText.trim() === item.text.trim()) {
+          const range = document.createRange();
+          range.selectNodeContents(n);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          break;
+        }
+      }
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    row.querySelector('.delete-ai').addEventListener('click', () => {
+      const idx = actionItems.findIndex(x => x.id === ai.id);
+      if (idx >= 0) {
+        if (!confirm('Delete this action item?')) return;
+        actionItems.splice(idx, 1);
+        renderActionItems();
+      }
+    });
+
+    actionItemsList.appendChild(row);
+  });
+}
+
+
+  document.getElementById('markActionBtn').addEventListener('click',()=>{
+  const range = quill.getSelection();
+  if (!range || range.length === 0) {
+    alert('Select text in the notes to mark as an action item.');
+    return;
+  }
+  const selectedText = quill.getText(range.index, range.length).trim();
+  if (!selectedText) {
+    alert('Selected text is empty.');
+    return;
+  }
+
+// Mark as ActionBlot (adds ⭐ star via CSS)
+quill.formatText(range.index, range.length, 'action', true);
+
+
+  // Always attach to the currently edited or unsaved topic
+let topicId = editingTopicId || 'unsaved';
+let topicTitle = topicTitleEl.value.trim() || '(unsaved topic)';
+
+// If editing an existing topic, pull its title
+if (editingTopicId) {
+  const t = topics.find(x => x.id === editingTopicId);
+  if (t) topicTitle = t.title;
+}
+
+
+  // Create and store action item
+  actionItems.push({
+    id: uid('ai-'),
+    text: selectedText,
+    topicId,
+    topicTitle,
+    assignedToId: null,
+    dueDate: ''
+  });
+
+  renderActionItems();
+
+  // Scroll to bottom
+  setTimeout(() => {
+    const list = document.getElementById('actionItemsList');
+    if (list) list.scrollTop = list.scrollHeight;
+  }, 80);
+});
+
+
+  // ---------- Word Export ----------
+  function escapeHtmlRaw(s){ return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+  function formatDateMDY(dateStr){ if(!dateStr) return ''; const d=new Date(dateStr); if(isNaN(d)) return dateStr; return `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`; }
+function buildDocumentHtml(){ 
+  const title=meetingTitleEl.value.trim()||''; 
+  const date=meetingDateEl.value; 
+  const ampm = document.getElementById('startAmPm').value;
+const start = `${startHourEl.value}:${startMinuteEl.value} ${ampm}`;
+
+  const durMinutes=Number(durationEl.value||60); 
+  const hours=Math.floor(durMinutes/60); 
+  const durLabel=durMinutes>=60?`${hours} hr${hours>1?'s':''}`:`${durMinutes} min`; 
+  const attendeesHtml=attendees.length?'<ul>'+attendees.map(a=>`<li>${escapeHtml(a.name)}</li>`).join('')+'</ul>':''; 
+  
+  let topicsHtml=''; 
+  if(topics.length===0) 
+    topicsHtml='<div class="small">No topics added.</div>'; 
+  else 
+    topics.forEach((t)=>{
+      topicsHtml+=`<div style="border:2px solid #cbd5e1;border-radius:8px;padding:10px;margin-bottom:12px;background:#f8fafc;"><div style="font-weight:700;margin-bottom:6px;">${escapeHtml(t.title)}</div><div>${t.html||''}</div></div>`;
+    }); 
+
+  let aiHtml=''; 
+  if(actionItems.length===0) 
+    aiHtml='<div class="small">No action items flagged.</div>'; 
+  else{
+    aiHtml=`<table class="doc-table"><thead><tr><th style="width:50%;">Action</th><th>Topic</th><th>Assigned To</th><th>Due</th></tr></thead><tbody>`;
+    actionItems.forEach(ai=>{
+      const topic=topics.find(t=>t.id===ai.topicId);
+      const assigned=attendees.find(a=>a.id===ai.assignedToId);
+      aiHtml+=`<tr><td>${escapeHtml(ai.text)}</td><td>${escapeHtml(topic?topic.title:'(topic removed)')}</td><td>${escapeHtml(assigned?assigned.name:'')}</td><td>${escapeHtml(formatDateMDY(ai.dueDate)||'')}</td></tr>`;
+    });
+    aiHtml+='</tbody></table>';
+  } 
+
+ const docCss = `<style>
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  margin: 0.5; /* remove default body margin */
+  color: #111827;
+}
+h1 { font-size: 20px; margin-bottom: 4px; text-align: center; }
+h2.subtitle { font-size: 14px; text-align: center; color: #374151; margin-top: 0; margin-bottom: 18px; }
+.doc-table { border-collapse: collapse; width: 100%; margin-top: 8px; }
+.doc-table th { text-align: left; background: #f3f4f6; padding: 8px; border: 1px solid #ddd; }
+.doc-table td { padding: 8px; border: 1px solid #ddd; vertical-align: top; }
+.action-item { background: #fff7cc; padding: 0 2px; border-radius: 2px; }
+.wrapper { margin: 0.5in; } /* Narrow margins applied via wrapper */
+</style>`;
+  let html = `<!doctype html><html><head><meta charset="utf-8"/><title>${escapeHtmlRaw(title||'Meeting Notes')}</title>${docCss}</head><body>`;
+
+// 🔹 CDU Logo + Header Row (table layout for Word compatibility)
+html += `
+  <table style="width:100%; border-collapse:collapse; margin-bottom:12px;">
+    <tr>
+      <td style="text-align:left; vertical-align:middle;">
+        <h1 style="font-size:22px; margin:0;">Meeting Notes</h1>
+      </td>
+      <td style="text-align:right; vertical-align:middle; width:80px;">
+        <img 
+          src="https://raw.githubusercontent.com/markevansjrcityphila-Evansm1/CDU-Meeting-Notes/refs/heads/main/image.png"
+          alt="CDU Logo"
+          width="75"
+          height="75"
+          style="width:75px; height:75px; object-fit:contain; border:none;"
+        />
+      </td>
+    </tr>
+  </table>
+
+  <h2 class="subtitle">${escapeHtmlRaw(title)}</h2>
+  <div>
+    <strong>Date:</strong> ${escapeHtmlRaw(formatDateMDY(date))} &nbsp;&nbsp;
+    <strong>Start:</strong> ${escapeHtmlRaw(start)} &nbsp;&nbsp;
+    <strong>Duration:</strong> ${escapeHtmlRaw(durLabel)}
+  </div>
+  <div style="margin-top:8px;"><strong>Attendees:</strong> ${attendeesHtml}</div>
+  <hr style="margin:12px 0;">
+  <h3>Topics</h3>${topicsHtml}
+  <h3>Action Items</h3>${aiHtml}
+  <div style="margin-top:18px;font-size:12px;color:#6b7280;">
+    Document generated from CDU Meeting Notes Generator Program
+  </div>
+</body></html>`;
+
+return html;
+
+
+return html;
+
+
+}
+
+
+  function exportWordDoc(){ const html=buildDocumentHtml(); const blob=new Blob(['\ufeff',html],{type:'application/msword'}); const docTitle=meetingTitleEl.value||'Meeting Notes'; const safeTitle=docTitle.replace(/[\\\/:*?"<>|]+/g,''); const fileName=`Meeting Notes (${safeTitle}).doc`; const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url;a.download=fileName;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500); }
+  generateWordBtn.addEventListener('click',()=>{if(!confirm('Generate Word document now?')) return; exportWordDoc();});
+
+  initialRender();
+</script>
+</body>
+</html>
