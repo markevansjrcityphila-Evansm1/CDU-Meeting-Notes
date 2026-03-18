@@ -1,530 +1,789 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Meeting Notes — Editor</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CDU Meeting Notes</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" />
+<script src="https://cdn.quilljs.com/1.3.7/quill.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<style>
+  * { font-family: 'DM Sans', sans-serif; box-sizing: border-box; }
+  body { background: #b0b8c4; min-height: 100vh; }
+  :root {
+    --accent: #4a6fa8; --accent-light: #dce6f0; --accent-mid: #5a80b8;
+    --slate: #2c3540; --slate-mid: #5a6a78; --slate-light: #8a9aaa;
+    --border: #9aa8b4; --card: #d4d9e0; --white: #d4d9e0; --danger: #b03030;
+  }
+  .app-header { background: #3a5878; border-bottom: 3px solid #2a4868; }
+  .section-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+  .section-label { font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--slate-light); }
 
-  <!-- Tailwind CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  /* Attendee tags */
+  .tag { background: #c2cedd; color: #2a4868; border: 1px solid #8a9eb8; border-radius: 20px; padding: 3px 10px 3px 12px; font-size: 13px; font-weight: 500; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+  .tag-x { background: none; border: none; cursor: pointer; color: #4a6888; font-size: 15px; line-height: 1; padding: 0; }
+  .tag-x:hover { color: var(--danger); }
+  .tag-input { border: none; outline: none; font-size: 13px; min-width: 140px; background: transparent; color: #2c3540; padding: 4px 2px; }
 
-  <!-- Quill Rich Text Editor -->
-  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
-  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+  /* Topic card */
+  .topic-card { background: #c8cfd8; border: 1px solid var(--border); border-radius: 10px; overflow: visible; margin-bottom: 0; }
+  .topic-header { background: #3e4a58; border-bottom: 1px solid #2e3a48; padding: 10px 14px; display: flex; align-items: center; gap: 8px; cursor: pointer; border-radius: 10px 10px 0 0; }
+  .topic-title-input { flex: 1; border: none; outline: none; background: transparent; font-size: 15px; font-weight: 600; color: #e8eef4; cursor: text; }
+  .topic-title-input::placeholder { color: #8090a0; font-weight: 400; }
+  .chevron { color: var(--slate-light); font-size: 24px; transition: transform .2s; flex-shrink: 0; line-height: 1; }
+  .chevron.open { transform: rotate(90deg); }
+  .topic-body { display: block; }
+  .topic-body.hidden { display: none; }
+  .del-btn { background: none; border: none; cursor: pointer; color: #7a8898; font-size: 26px; line-height: 1; padding: 0 2px; transition: color .15s; flex-shrink: 0; }
+  .del-btn:hover { color: var(--danger); }
 
-  <style>
-    body { background: linear-gradient(180deg,#e6f0fb 0%, #d6dfe7 100%); }
-    .card { background: #fff; border-radius: 12px; padding: 1rem; box-shadow: 0 6px 18px rgba(20,35,60,0.06); border:1px solid rgba(20,35,60,0.04); }
-    .action-item { background: #fff7cc; padding: 0 2px; border-radius: 2px; }
-    .attendee-chip { background:#eef2ff; padding:6px 8px; border-radius:999px; display:inline-flex; gap:8px; align-items:center; border:1px solid #dbeafe; }
-    .topic-card { border:1px solid #e6eef7; border-radius:8px; padding:10px; background:#fbfdff; cursor:pointer; }
-    #topicEditor { height: 160px; }
-    .ql-toolbar.ql-snow { border-radius: 6px 6px 0 0; border: 1px solid #e6eef7; }
-    .ql-container.ql-snow { border-radius: 0 0 6px 6px; border: 1px solid #e6eef7; border-top: none; }
-    .ql-editor .action-item::before {
-  content: "★" !important;
-  margin-right: 4px;
-  color: #facc15 !important; /* Tailwind amber-400 */
-  font-weight: 700 !important;
-  display: inline-block;
-}
-  </style>
+  /* Quill */
+  .ql-container.ql-snow { border: none !important; }
+  .ql-toolbar.ql-snow { border: none !important; border-bottom: 1px solid var(--border) !important; background: #b8c0ca; padding: 6px 10px; }
+  .ql-editor { min-height: 130px; font-size: 14px; color: #2c3540; padding: 12px 16px; font-family: 'DM Sans', sans-serif !important; background: #dde2e8; }
+  .ql-editor.ql-blank::before { color: #9aaab8; font-style: normal; font-family: 'DM Sans', sans-serif; }
+  .ql-toolbar .ql-stroke { stroke: #4a5a70 !important; }
+  .ql-toolbar .ql-fill { fill: #4a5a70 !important; }
+  .ql-toolbar button:hover .ql-stroke { stroke: #2a3a50 !important; }
+  .ql-toolbar button:hover .ql-fill { fill: #2a3a50 !important; }
+  .ql-toolbar .ql-picker-label { color: #4a5a70 !important; }
+  .ql-toolbar .ql-picker-options { background: #c8cfd8 !important; border-color: #9aa8b4 !important; }
+  .ql-toolbar .ql-picker-item { color: #2c3540 !important; }
+
+  /* Actions section inside topic */
+  .actions-area { border-top: 1px solid #9aa8b4; background: #b8c0ca; padding: 10px 14px 12px; }
+  .action-row { display: flex; align-items: center; gap: 6px; background: #cdd4dc; border: 1px solid #9aa8b4; border-radius: 7px; padding: 6px 10px; margin-bottom: 5px; }
+  .action-num { font-size: 10px; font-family: 'DM Mono', monospace; color: #8a9aaa; min-width: 16px; text-align: right; flex-shrink: 0; }
+  .action-text { flex: 1; border: none; outline: none; font-size: 13px; color: #2c3540; background: transparent; min-width: 0; resize: none; overflow: hidden; line-height: 1.4; min-height: 22px; padding: 0; }
+  .action-text::placeholder { color: #9aaab8; }  .action-text::placeholder { color: #9aaab8; }
+  .action-assign { width: 130px; flex-shrink: 0; border: 1px solid #9aa8b4; border-radius: 5px; padding: 3px 8px; font-size: 12px; color: #4a5a68; outline: none; background: #bec8d2; }
+  .action-assign:focus { border-color: var(--accent-mid); background: #c8d0da; }
+  .action-assign::placeholder { color: #9aaab8; }
+  .action-del { background: none; border: none; cursor: pointer; color: #ccd6de; font-size: 24px; line-height: 1; padding: 0; flex-shrink: 0; transition: color .15s; }
+  .action-del:hover { color: var(--danger); }
+
+  /* Add buttons */
+  .add-btn { display: inline-flex; align-items: center; gap: 5px; background: var(--slate); border: 1px solid #7a90a8; border-radius: 6px; color: #e7e9ec; font-size: 12px; font-weight: 600; padding: 5px 13px; cursor: pointer; transition: all .15s; margin-top: 6px; }
+  .add-btn:hover { background: #b8c8d8; border-color: #5a80b8; }
+  .add-btn.inline { margin-top: 0; }
+
+  /* Header buttons */
+  .hbtn { background: white; border: 1px solid #4a6070; border-radius: 7px; padding: 6px 13px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; gap: 5px; color: #dce8f4; white-space: nowrap; }
+  .hbtn:hover { border-color: #8ab0d0; color: #e0eefa; background: #4a6888; }
+  .hbtn.danger { color: #e07070; border-color: #6a3030; }
+  .hbtn.danger:hover { border-color: var(--danger); color: var(--danger); background: #fff6f6; }
+
+  /* Inputs */
+  input[type="date"].fi, select.fi { border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; font-size: 13px; color: var(--slate); outline: none; background: #c8cfd8; width: 100%; font-family: 'DM Sans', sans-serif; }
+  input[type="date"].fi:focus, select.fi:focus { border-color: var(--accent-mid); }
+  input.mtitle { border: none; outline: none; font-size: 17px; font-weight: 700; color: #2c3540; background: transparent; width: 100%; }
+  input.mtitle::placeholder { color: #9aaab8; font-weight: 400; }
+
+  /* Modal */
+  .overlay { position: fixed; inset: 0; background: rgba(20,35,50,.5); z-index: 100; display: flex; align-items: center; justify-content: center; }
+  .modal { background: #c8cfd8; border-radius: 12px; padding: 28px 30px; max-width: 380px; width: 92%; box-shadow: 0 24px 64px rgba(0,0,0,.18); }
+  .modal-btn { background: #b8c0ca; border: 1px solid var(--border); border-radius: 7px; padding: 8px 16px; font-size: 13px; font-weight: 600; cursor: pointer; color: #2c3540; }
+  .modal-btn:hover { border-color: var(--slate-light); }
+  .modal-btn.red { color: var(--danger); border-color: #f0c8c8; }
+  .modal-btn.red:hover { background: #e8c8c8; border-color: var(--danger); }
+
+  @media(max-width:640px){
+    #topicsGrid{grid-template-columns:1fr !important;}
+    .action-assign{width:95px;}
+    .hbtn{padding:5px 9px;font-size:11px;}
+  }
+</style>
 </head>
-<body class="p-6">
+<body>
 
-<div class="max-w-6xl mx-auto">
-
-  <header class="mb-6 flex items-center justify-between">
-  <div class="flex items-center gap-4">
-    <!-- CDU Logo Placeholder -->
-    <img id="cduLogoPage" src="https://raw.githubusercontent.com/markevansjrcityphila-Evansm1/CDU-Meeting-Notes/refs/heads/main/image.png" alt="CDU Logo" class="h-12 w-auto" />
+<!-- Header -->
+<header class="app-header sticky top-0 z-40 px-4 py-3">
+  <div class="max-w-5xl mx-auto flex items-center justify-between gap-2 flex-wrap">
     <div>
-      <h1 class="text-2xl font-semibold">CDU Meeting Notes Generator</h1>
-      <p class="tiny mt-1">Fast meeting capture with rich text notes and automatically extracted action items.</p>
+      <div style="font-weight:800;font-size:24px;color:white;letter-spacing:-.3px;line-height:1.1">CDU</div>
+      <div style="font-size:18px;letter-spacing:.12em;text-transform:uppercase;color:#b8cce0;line-height:1.1">Meeting Notes</div>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+      <button onclick="copyNotes()" class="hbtn text-green-600" id="copyBtn">Copy Notes
+      </button>
+      <button onclick="exportPDF()" class="hbtn text-black">
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="currentColor text-black" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+        Export PDF
+      </button>
+      <button onclick="exportDOCX()" class="hbtn text-blue-700">
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="currentColor" viewBox="0 0 16 16"><path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/><path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/></svg>
+        Export Word
+      </button>
+      <button onclick="showClear()" class="hbtn text-red-600">
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="currentColor" viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3h11V2h-11v1z"/></svg>
+        New Meeting
+      </button>
     </div>
   </div>
-  <button id="generateWordBtn" class="px-4 py-2 bg-emerald-600 text-white rounded-md hover:bg-emerald-700">Generate Word Doc</button>
 </header>
 
+<div class="max-w-5xl mx-auto px-4 py-5 space-y-4">
 
-  <!-- ---------- Meeting Info + Topic Composer Row ---------- -->
-  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <!-- Meeting Info -->
-    <div class="card">
-      <h2 class="font-semibold text-slate-700 mb-3">Meeting Info</h2>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <div>
-          <label class="block text-sm text-slate-600">Title</label>
-          <input id="meetingTitle" class="mt-1 w-full border rounded-md px-3 py-2" placeholder="Meeting title (optional)" />
-        </div>
-        <div>
-          <label class="block text-sm text-slate-600">Date</label>
-          <input id="meetingDate" type="date" class="mt-1 w-full border rounded-md px-3 py-2" />
-        </div>
-        <div>
-          <label class="block text-sm text-slate-600">Start Time</label>
-          <div class="flex gap-2 mt-1">
-  <select id="startHour" class="border rounded-md px-3 py-2"></select>
-  <select id="startMinute" class="border rounded-md px-3 py-2">
-    <option value="00">00</option>
-    <option value="15">15</option>
-    <option value="30">30</option>
-    <option value="45">45</option>
-  </select>
-  <select id="startAmPm" class="border rounded-md px-3 py-2">
-    <option value="AM">AM</option>
-    <option value="PM">PM</option>
-  </select>
+  <!-- Meeting Info -->
+  <div class="section-card p-4">
+    <div class="section-label mb-3 text-slate-700">Meeting Info</div>
+    <input id="mTitle" class="mtitle mb-3" type="text" placeholder="Meeting Title…" oninput="save()" />
+    <div class="flex gap-3 flex-wrap">
+      <div style="flex:1;min-width:140px">
+        <div class="section-label mb-1">Date</div>
+        <input id="mDate" type="date" class="fi" oninput="save()" />
+      </div>
+      <div style="flex:1;min-width:140px">
+        <div class="section-label mb-1">Time</div>
+        <select id="mTime" class="fi" onchange="save()"></select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Attendees -->
+  <div class="section-card p-4">
+    <div class="section-label mb-2 text-slate-700">
+      Attendees
+      <span style="color:#8a9aaa;font-weight:400;font-size:10px;text-transform:none;letter-spacing:0;margin-left:6px">type name + Enter</span>
+    </div>
+    <div id="attWrap" class="flex flex-wrap gap-2 items-center" style="min-height:32px">
+      <input id="attInput" class="tag-input" type="text" placeholder="Add attendees…" onkeydown="attKey(event)" />
+    </div>
+  </div>
+
+  <!-- Topics -->
+  <div>
+    <div class="flex items-center justify-between mb-2">
+      <div class="section-label text-slate-700">Topics &amp; Notes</div>
+      <button onclick="addTopic()" class="add-btn inline">+ Add Topic</button>
+    </div>
+    <div id="topicsGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start"></div>
+    <div id="topicsHint" style="text-align:center;padding:24px 0;color:#3c4349;font-size:13px">
+      No topics yet — click <strong style="color:#5a90b8">+ Add Topic</strong> to begin
+    </div>
+  </div>
+
+  <!-- Standalone actions -->
+  <div class="section-card p-4">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <div class="section-label text-slate-700">Standalone Action Items</div>
+        <div style="font-size:11px;color:#2e3a48;margin-top:2px">Not tied to a topic</div>
+      </div>
+      <button onclick="addGlobalAction()" class="add-btn inline">+ Add</button>
+    </div>
+    <div id="globalWrap"></div>
+    <div id="globalHint" style="color:#8a9aaa;font-size:12px;font-style:italic">None yet.</div>
+  </div>
+
 </div>
-        </div>
-        <div>
-          <label class="block text-sm text-slate-600">Duration</label>
-          <select id="duration" class="mt-1 w-full border rounded-md px-3 py-2"></select>
-        </div>
-      </div>
 
-      <div class="mt-4">
-        <label class="block text-sm text-slate-600">Attendees</label>
-        <div class="flex gap-2 mt-2">
-          <input id="attendeeInput" class="border rounded-md px-3 py-2 flex-1" placeholder="Type a name and press Add" />
-          <button id="addAttendeeBtn" class="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Add</button>
-        </div>
-        <div id="attendeesList" class="mt-3 flex flex-wrap gap-2"></div>
-      </div>
+<!-- Clear modal -->
+<div id="clearOverlay" class="overlay" style="display:none">
+  <div class="modal">
+    <div style="font-size:16px;font-weight:700;color:#2c3540;margin-bottom:8px">Start a new meeting?</div>
+    <div style="font-size:13px;color:#5a6a78;margin-bottom:22px">All notes, topics, and action items will be permanently cleared.</div>
+    <div class="flex justify-end gap-2">
+      <button onclick="hideClear()" class="modal-btn">Cancel</button>
+      <button onclick="clearAll()" class="modal-btn red">Clear Everything</button>
     </div>
-
-    <!-- Topic Composer -->
-    <div class="card">
-      <div class="flex items-start justify-between">
-        <div>
-          <h2 class="font-semibold text-slate-700">Topic — Compose</h2>
-          <p class="tiny text-slate-600">Title, notes (rich text). Select text and click "Mark Action" to flag an action item.</p>
-        </div>
-        <div class="flex gap-2">
-          <button id="markActionBtn" class="px-3 py-2 bg-yellow-400 rounded-md hover:bg-yellow-500">Mark Action</button>
-          <button id="saveTopicBtn" class="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Save Topic</button>
-          <button id="clearTopicBtn" class="px-3 py-2 bg-slate-200 rounded-md hover:bg-slate-300">Clear</button>
-        </div>
-      </div>
-
-      <div class="mt-3">
-        <label class="block text-sm text-slate-600">Topic Title</label>
-        <input id="topicTitle" class="mt-1 w-full border rounded-md px-3 py-2" placeholder="Topic — give it a short title" />
-      </div>
-
-      <div class="mt-3">
-        <div id="toolbar">
-          <span class="ql-formats"><button class="ql-bold"></button><button class="ql-italic"></button><button class="ql-underline"></button><button class="ql-strike"></button></span>
-          <span class="ql-formats"><button class="ql-list" value="ordered"></button><button class="ql-list" value="bullet"></button></span>
-          <span class="ql-formats"><button class="ql-link"></button><button class="ql-clean"></button></span>
-        </div>
-        <div id="topicEditor" class="mt-1 bg-white rounded-md overflow-hidden"></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ---------- Topics + Action Items Row ---------- -->
-  <section class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-    <!-- Topics List -->
-    <div class="card">
-      <div class="flex items-center justify-between">
-        <h3 class="font-semibold text-slate-700">Topics</h3>
-        <div class="tiny text-slate-600">Click a card to edit</div>
-      </div>
-      <div id="topicsContainer" class="mt-3 space-y-2 max-h-[520px] overflow-auto"></div>
-    </div>
-
-    <!-- Action Items List -->
-    <div class="card">
-      <h3 class="font-semibold text-slate-700">Action Items</h3>
-      <div id="actionItemsList" class="space-y-2 max-h-[520px] overflow-auto"></div>
-      <div class="tiny mt-3 text-slate-600">Flag text in topic editor and click “Mark Action” → it'll appear here and in exports.</div>
-    </div>
-  </section>
-
-  <footer class="mt-6 tiny text-slate-600">Tip: select text and click “Mark Action” — you can edit topics and action items at any time.</footer>
-
+  </div>
 </div>
 
 <script>
-  // ---------- Utilities ----------
-  function uid(prefix='id'){ return prefix + Math.random().toString(36).slice(2,9); }
-  function escapeHtml(s){ return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
-  function stripHtmlPreview(html, max=120){ const tmp=document.createElement('div'); tmp.innerHTML=html; const txt=tmp.innerText||tmp.textContent||''; return txt.length>max?txt.slice(0,max)+'…':txt; }
+// ── State ──────────────────────────────────────
+let S = { title:'', date:'', time:'', attendees:[], topics:[], global:[] };
+// topics: [{id,title,notes,collapsed,actions:[{id,text,assign}]}]
+// global: [{id,text,assign}]
+const Q = {};   // id→Quill
+let seq = 0;    // action id counter
 
-  // ---------- Meeting defaults ----------
-  const meetingDateEl = document.getElementById('meetingDate');
-  const meetingTitleEl = document.getElementById('meetingTitle');
-  const startHourEl = document.getElementById('startHour');
-  const startMinuteEl = document.getElementById('startMinute');
-  const durationEl = document.getElementById('duration');
-
-  for(let h=1; h<=12; h++){ 
-  const o=document.createElement('option'); 
-  o.value=o.textContent=String(h); 
-  startHourEl.appendChild(o); 
-}
-  for(let m=30;m<=480;m+=30){ const o=document.createElement('option'); o.value=String(m); o.textContent=m>=60?`${m/60} hr${m>60?'s':''}`:`${m} min`; durationEl.appendChild(o); }
-  durationEl.value='60';
-  (function(){ const d=new Date(); meetingDateEl.value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); const next=new Date(); next.setMinutes(Math.ceil(next.getMinutes()/15)*15); startHourEl.value=String(next.getHours()).padStart(2,'0'); startMinuteEl.value=String(next.getMinutes()).padStart(2,'0'); })();
-
-  // ---------- Attendees ----------
-  const attendees=[]; const attendeeInput=document.getElementById('attendeeInput'); const addAttendeeBtn=document.getElementById('addAttendeeBtn'); const attendeesList=document.getElementById('attendeesList');
-
-  function renderAttendees(){ attendeesList.innerHTML=''; attendees.forEach(a=>{ const chip=document.createElement('div'); chip.className='attendee-chip'; chip.innerHTML=`<span>${escapeHtml(a.name)}</span><button data-id="${a.id}" title="Remove" class="ml-2 text-slate-500">&times;</button>`; chip.querySelector('button').addEventListener('click',()=>removeAttendee(a.id)); attendeesList.appendChild(chip); }); }
-  function addAttendee(name){ const n=(name||'').trim(); if(!n) return; attendees.push({id:uid('att-'),name:n}); attendeeInput.value=''; renderAttendees(); renderActionItems(); }
-  function removeAttendee(id){ const idx=attendees.findIndex(a=>a.id===id); if(idx>=0) attendees.splice(idx,1); renderAttendees(); renderActionItems(); }
-  addAttendeeBtn.addEventListener('click',()=>addAttendee(attendeeInput.value));
-  attendeeInput.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); addAttendee(attendeeInput.value); } });
-
-  // ---------- Quill + Action blot ----------
-  const Inline = Quill.import('blots/inline');
-  class ActionBlot extends Inline {
-  static blotName = 'action';
-  static className = 'action-item';
-  static tagName = 'span';
-  static create(value) {
-    const node = super.create();
-    node.setAttribute('data-action', 'true');
-    // 🔹 Add a star in front for visual cue
-    node.innerHTML = '★ ' + (node.innerHTML || '');
-    return node;
-  }
-}
-  Quill.register(ActionBlot);
-  const quill=new Quill('#topicEditor',{ modules:{toolbar:'#toolbar'}, theme:'snow', placeholder:'Write notes here...' });
-
-  // ---------- Topics + Action Items ----------
-  const topics=[]; const actionItems=[]; let editingTopicId=null;
-  const topicTitleEl=document.getElementById('topicTitle');
-  const saveTopicBtn=document.getElementById('saveTopicBtn');
-  const clearTopicBtn=document.getElementById('clearTopicBtn');
-  const topicsContainer=document.getElementById('topicsContainer');
-  const actionItemsList=document.getElementById('actionItemsList');
-
-  function extractActionItemsFromHtml(html){ const tmp=document.createElement('div'); tmp.innerHTML=html; const items=[]; tmp.querySelectorAll('.action-item').forEach(n=>{ const text=n.innerText.trim(); if(text) items.push(text); }); return items; }
-
- function saveTopic() {
-  const title = (topicTitleEl.value || '').trim();
-  const html = quill.root.innerHTML.trim();
-  if (!title && (!html || html === '')) {
-    alert('Please provide a topic title or notes.');
-    return;
-  }
-
-  const extracted = extractActionItemsFromHtml(html);
-
-  if (editingTopicId) {
-    const t = topics.find(x => x.id === editingTopicId);
-    if (!t) return;
-    t.title = title || '(untitled)';
-    t.html = html;
-
-    // Remove old action items for this topic
-    for (let i = actionItems.length - 1; i >= 0; i--)
-      if (actionItems[i].topicId === t.id) actionItems.splice(i, 1);
-
-    // Add updated ones
-    extracted.forEach(txt => {
-      actionItems.push({
-        id: uid('ai-'),
-        text: txt,
-        topicId: t.id,
-        assignedToId: null,
-        dueDate: ''
-      });
-    });
-
-    editingTopicId = null;
-
-  } else {
-    const id = uid('top-');
-    topics.push({
-      id,
-      title: title || '(untitled)',
-      html,
-      createdAt: new Date().toISOString()
-    });
-
-    extracted.forEach(txt => {
-      actionItems.push({
-        id: uid('ai-'),
-        text: txt,
-        topicId: id,
-        assignedToId: null,
-        dueDate: ''
-      });
-    });
-
-    // 🔹 FIX: Link any previously unsaved action items to this new topic
-    actionItems.forEach(ai => {
-      if (!ai.topicId || ai.topicId === 'unsaved') {
-        ai.topicId = id;
-        ai.topicTitle = title || '(untitled)';
-      }
-    });
-  }
-
-  topicTitleEl.value = '';
-  quill.setContents([]);
-  renderTopics();
-  renderActionItems();
-}
-
-saveTopicBtn.addEventListener('click', saveTopic);
-clearTopicBtn.addEventListener('click', () => {
-  editingTopicId = null;
-  topicTitleEl.value = '';
-  quill.setContents([]);
+// ── Boot ───────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  buildTimes();
+  defaultDT();
+  load();
 });
 
+function buildTimes(){
+  const el=document.getElementById('mTime');
+  for(let h=0;h<24;h++) for(let m of [0,30]){
+    const v=`${p2(h)}:${p2(m)}`;
+    const lh=h%12||12, ap=h<12?'AM':'PM';
+    el.insertAdjacentHTML('beforeend',`<option value="${v}">${lh}:${p2(m)} ${ap}</option>`);
+  }
+}
+function p2(n){return String(n).padStart(2,'0');}
+function defaultDT(){
+  const n=new Date();
+  document.getElementById('mDate').value=`${n.getFullYear()}-${p2(n.getMonth()+1)}-${p2(n.getDate())}`;
+  let h=n.getHours(),m=n.getMinutes();
+  if(m<15) m=0; else if(m<45) m=30; else{m=0;h=(h+1)%24;}
+  document.getElementById('mTime').value=`${p2(h)}:${p2(m)}`;
+  S.date=document.getElementById('mDate').value;
+  S.time=document.getElementById('mTime').value;
+}
 
-  function renderTopics(){ topicsContainer.innerHTML=''; if(topics.length===0){ topicsContainer.innerHTML='<div class="tiny text-slate-500">No topics yet — compose and save one.</div>'; return; } const grid=document.createElement('div'); grid.className='grid gap-2'; grid.style.gridTemplateColumns='repeat(auto-fit,minmax(220px,1fr))'; topics.forEach(t=>{ const card=document.createElement('div'); card.className='topic-card'; card.innerHTML=`<div class="flex items-start justify-between"><div><div class="font-semibold">Topic — ${escapeHtml(t.title)}</div><div class="tiny text-slate-600 mt-1">${stripHtmlPreview(t.html,120)}</div></div><div class="flex flex-col items-end gap-1"><button data-id="${t.id}" class="edit-topic tiny text-indigo-600">Edit</button><button data-id="${t.id}" class="delete-topic tiny text-red-600">Delete</button></div></div>`; card.querySelector('.edit-topic').addEventListener('click',()=>{ editingTopicId=t.id; topicTitleEl.value=t.title; quill.root.innerHTML=t.html; quill.focus(); window.scrollTo({top:0,behavior:'smooth'}); }); card.querySelector('.delete-topic').addEventListener('click',()=>{ if(!confirm('Delete topic and its action items?')) return; const idx=topics.findIndex(x=>x.id===t.id); if(idx>=0) topics.splice(idx,1); for(let i=actionItems.length-1;i>=0;i--) if(actionItems[i].topicId===t.id) actionItems.splice(i,1); renderTopics(); renderActionItems(); }); grid.appendChild(card); }); topicsContainer.appendChild(grid); }
+// ── Persistence ────────────────────────────────
+function save(){
+  S.title=document.getElementById('mTitle').value;
+  S.date=document.getElementById('mDate').value;
+  S.time=document.getElementById('mTime').value;
+  S.topics.forEach(t=>{ if(Q[t.id]) t.notes=Q[t.id].root.innerHTML; });
+  localStorage.setItem('cdu2',JSON.stringify(S));
+}
 
-  function renderActionAssigneeOptions(){ return attendees.map(a=>`<option value="${a.id}">${escapeHtml(a.name)}</option>`).join(''); }
+function load(){
+  const raw=localStorage.getItem('cdu2');
+  if(!raw) return;
+  try{
+    const sv=JSON.parse(raw);
+    S={...S,...sv};
+    document.getElementById('mTitle').value=S.title||'';
+    if(S.date) document.getElementById('mDate').value=S.date;
+    if(S.time) document.getElementById('mTime').value=S.time;
+    // restore seq
+    [...(S.global||[]),...(S.topics||[]).flatMap(t=>t.actions||[])].forEach(a=>{
+      const n=parseInt((a.id||'').split('_')[1]||0); if(n>seq) seq=n;
+    });
+    renderAtts();
+    S.topics.forEach(t=>mountTopic(t));
+    syncTopicHint();
+    S.global.forEach(a=>mountAction(a,null));
+    syncGlobalHint();
+  }catch(e){console.error(e);}
+}
 
-function renderActionItems() {
-  actionItemsList.innerHTML = '';
-  if (actionItems.length === 0) {
-    actionItemsList.innerHTML = '<div class="tiny text-slate-500">No action items flagged yet.</div>';
-    return;
+// ── Attendees ──────────────────────────────────
+function attKey(e){
+  if(e.key==='Enter'||e.key===','){
+    e.preventDefault();
+    const v=e.target.value.trim().replace(/,/g,'');
+    if(v&&!S.attendees.includes(v)){S.attendees.push(v);renderAtts();save();}
+    e.target.value='';
+    // Keep focus in the input for rapid entry
+    setTimeout(()=>document.getElementById('attInput')?.focus(),0);
+  }
+}
+function removeAtt(name){
+  S.attendees=S.attendees.filter(a=>a!==name);
+  renderAtts(); save();
+}
+function renderAtts(){
+  const w=document.getElementById('attWrap');
+  const inp=document.getElementById('attInput');
+  w.innerHTML='';
+  S.attendees.forEach(n=>{
+    const s=document.createElement('span');
+    s.className='tag';
+    s.innerHTML=`${x(n)}<button class="tag-x" onclick="removeAtt('${x(n)}')">×</button>`;
+    w.appendChild(s);
+  });
+  w.appendChild(inp);
+}
+
+// ── Topics ─────────────────────────────────────
+function tid(){return 'T'+Date.now()+Math.random().toString(36).slice(2,5);}
+function aid(){return 'a_'+(++seq);}
+
+function addTopic(){
+  const t={id:tid(),title:'',notes:'',collapsed:false,actions:[]};
+  S.topics.unshift(t); // newest first in array too
+  mountTopic(t,true,true); // prepend to grid
+  syncTopicHint();
+  save();
+}
+
+function mountTopic(t, focus=false, prepend=false){
+  const wrap=document.getElementById('topicsGrid');
+  const card=document.createElement('div');
+  card.className='topic-card';
+  card.id='tc_'+t.id;
+
+  card.innerHTML=`
+    <div class="topic-header" id="th_${t.id}" onclick="headerClick(event,'${t.id}')">
+      <span class="chevron ${t.collapsed?'':'open'}" id="chev_${t.id}">&#9656;</span>
+      <input id="tt_${t.id}" class="topic-title-input" type="text"
+        placeholder="Topic title…" value="${x(t.title)}"
+        oninput="S.topics.find(q=>q.id==='${t.id}').title=this.value;save();" onkeydown="if(event.key==='Tab'){event.preventDefault();Q['${t.id}']?.focus();}"
+        onclick="event.stopPropagation()" />
+      <button class="del-btn" title="Delete topic"
+        onclick="event.stopPropagation();deleteTopic('${t.id}')">×</button>
+    </div>
+    <div class="topic-body ${t.collapsed?'hidden':''}" id="tb_${t.id}">
+      <div id="qw_${t.id}"></div>
+      <div class="actions-area">
+        <div class="section-label mb-2 text-slate-700">Action Items</div>
+        <div id="ta_${t.id}"></div>
+        <button class="add-btn" onclick="addTopicAction('${t.id}')">+ Action Item</button>
+      </div>
+    </div>`;
+
+  if(prepend) wrap.insertBefore(card, wrap.firstChild); else wrap.appendChild(card);
+
+  // Init Quill
+  const q=new Quill(`#qw_${t.id}`,{
+    theme:'snow',
+    placeholder:'Notes for this topic…',
+    modules:{toolbar:[
+      ['bold','italic','underline'],
+      [{list:'ordered'},{list:'bullet'}],
+      ['link'],['clean']
+    ]}
+  });
+  if(t.notes&&t.notes.trim()&&t.notes!=='<p><br></p>') q.root.innerHTML=t.notes;
+  q.on('text-change',()=>{t.notes=q.root.innerHTML;save();});
+  Q[t.id]=q;
+
+  // Mount existing actions
+  (t.actions||[]).forEach(a=>mountAction(a,t.id));
+
+  if(focus) setTimeout(()=>document.getElementById('tt_'+t.id)?.focus(),60);
+}
+
+function headerClick(e,id){
+  if(e.target.tagName==='INPUT') return;
+  const t=S.topics.find(q=>q.id===id);
+  if(!t) return;
+  t.collapsed=!t.collapsed;
+  document.getElementById('tb_'+id).classList.toggle('hidden',t.collapsed);
+  document.getElementById('chev_'+id).classList.toggle('open',!t.collapsed);
+  save();
+}
+
+function deleteTopic(id){
+  S.topics=S.topics.filter(t=>t.id!==id);
+  delete Q[id];
+  document.getElementById('tc_'+id)?.remove();
+  syncTopicHint();
+  save();
+}
+
+function syncTopicHint(){
+  document.getElementById('topicsHint').style.display=S.topics.length?'none':'';
+}
+
+// ── Topic Actions ──────────────────────────────
+function addTopicAction(tid){
+  const t=S.topics.find(q=>q.id===tid);
+  if(!t) return;
+  const a={id:aid(),text:'',assign:''};
+  t.actions.push(a);
+  mountAction(a,tid);
+  save();
+  setTimeout(()=>document.getElementById('at_'+a.id)?.focus(),30);
+}
+
+function mountAction(a, topicId){
+  const wrap=topicId
+    ? document.getElementById('ta_'+topicId)
+    : document.getElementById('globalWrap');
+  if(!wrap) return;
+
+  const num=getNum(a.id);
+  const row=document.createElement('div');
+  row.className='action-row';
+  row.id='ar_'+a.id;
+  row.innerHTML=`
+    <span class="action-num" id="an_${a.id}">${num}</span>
+    <textarea id="at_${a.id}" class="action-text" placeholder="Describe action item…" rows="1">${x(a.text)}</textarea>
+    <input id="aa_${a.id}" class="action-assign" type="text" placeholder="Assign to…" value="${x(a.assign||a.assignee||'')}" />
+    <button class="action-del" onclick="${topicId?`delTopicAction('${topicId}','${a.id}')`:`delGlobal('${a.id}')`}">×</button>`;
+  wrap.appendChild(row);
+
+  const ta=document.getElementById('at_'+a.id);
+  ta.addEventListener('input',e=>{a.text=e.target.value;autoGrow(e.target);save();});
+  setTimeout(()=>autoGrow(ta),0);
+  document.getElementById('aa_'+a.id).addEventListener('input',e=>{a.assign=e.target.value;a.assignee=e.target.value;save();});
+}
+
+function delTopicAction(tid,aid_){
+  const t=S.topics.find(q=>q.id===tid);
+  if(t) t.actions=t.actions.filter(a=>a.id!==aid_);
+  document.getElementById('ar_'+aid_)?.remove();
+  save();
+}
+
+// ── Global Actions ─────────────────────────────
+function addGlobalAction(){
+  const a={id:aid(),text:'',assign:''};
+  S.global.push(a);
+  mountAction(a,null);
+  syncGlobalHint();
+  save();
+  setTimeout(()=>document.getElementById('at_'+a.id)?.focus(),30);
+}
+
+function delGlobal(aid_){
+  S.global=S.global.filter(a=>a.id!==aid_);
+  document.getElementById('ar_'+aid_)?.remove();
+  syncGlobalHint();
+  save();
+}
+
+function syncGlobalHint(){
+  document.getElementById('globalHint').style.display=S.global.length?'none':'';
+}
+
+// ── Helpers ────────────────────────────────────
+function x(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');}
+
+function allActions(){
+  const all=[];
+  S.topics.forEach(t=>(t.actions||[]).forEach(a=>all.push({...a,assign:a.assign||a.assignee||'',topic:t.title||'(Untitled)'})));
+  S.global.forEach(a=>all.push({...a,assign:a.assign||a.assignee||'',topic:''}));
+  return all.sort((a,b)=>parseInt(a.id.split('_')[1]||0)-parseInt(b.id.split('_')[1]||0));
+}
+
+function getNum(aid_){
+  const all=allActions();
+  const i=all.findIndex(a=>a.id===aid_);
+  return i>=0?i+1:'?';
+}
+
+function stripH(html){
+  const d=document.createElement('div');
+  d.innerHTML=html;
+  d.querySelectorAll('p,li,br').forEach(el=>el.after(document.createTextNode('\n')));
+  return (d.textContent||'').replace(/\n{3,}/g,'\n\n').trim();
+}
+function autoGrow(el){
+  el.style.height='auto';
+  el.style.height=el.scrollHeight+'px';
+}
+
+// ── Clear ──────────────────────────────────────
+function showClear(){document.getElementById('clearOverlay').style.display='flex';}
+function hideClear(){document.getElementById('clearOverlay').style.display='none';}
+function clearAll(){
+  localStorage.removeItem('cdu2');
+  Object.keys(Q).forEach(k=>delete Q[k]);
+  seq=0;
+  S={title:'',date:'',time:'',attendees:[],topics:[],global:[]};
+  document.getElementById('mTitle').value='';
+  defaultDT();
+  renderAtts();
+  document.getElementById('topicsGrid').innerHTML='';
+  syncTopicHint();
+  document.getElementById('globalWrap').innerHTML='';
+  syncGlobalHint();
+  hideClear();
+}
+function copyNotes(){
+  save();
+  const sel2=document.getElementById('mTime');
+  const tstr=sel2.options[sel2.selectedIndex]?.text||'';
+  const dstr=S.date?new Date(S.date+'T12:00').toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):'';
+  const ex=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  let html=`
+    <div style="font-family:Arial,sans-serif;max-width:700px;color:#2c3540;">
+      <h1 style="font-size:20px;color:#3a5878;border-bottom:3px solid #3a5878;padding-bottom:6px;margin-bottom:4px;">
+        CDU Meeting Notes Summary
+      </h1>
+      <p style="font-size:16px;font-weight:700;margin:10px 0 2px;">${ex(S.title||'Untitled Meeting')}</p>`;
+
+  if(dstr||tstr)
+    html+=`<p style="font-size:12px;color:#7a8898;margin:0 0 12px;">${ex([dstr,tstr].filter(Boolean).join('   •   '))}</p>`;
+
+  if(S.attendees.length)
+    html+=`<p style="margin:8px 0;"><strong>Attendees:</strong> ${ex(S.attendees.join(', '))}</p>`;
+
+  if(S.topics.length){
+    html+=`<h2 style="font-size:14px;color:#3a5878;text-transform:uppercase;letter-spacing:.08em;margin:20px 0 8px;">Topics &amp; Notes</h2>`;
+    [...S.topics].reverse().forEach(t=>{
+      html+=`<div style="margin-bottom:16px;">
+        <p style="font-weight:700;font-size:14px;margin:0 0 4px;border-bottom:2px solid #3a5878;padding-bottom:3px;">
+          ${ex(t.title||'(Untitled Topic)')}
+        </p>`;
+      if(t.notes&&t.notes.trim()&&t.notes!=='<p><br></p>')
+        html+=`<div style="font-size:13px;line-height:1.6;">${t.notes}</div>`;
+      html+=`</div>`;
+    });
   }
 
-  actionItems.forEach(ai => {
-    const row = document.createElement('div');
-    row.className = 'border rounded-md p-2 flex flex-col gap-2';
-
-    const topic = topics.find(t => t.id === ai.topicId);
-    row.innerHTML = `
-      <div class="flex items-start justify-between">
-        <div>
-          <div class="font-medium">${escapeHtml(ai.text)}</div>
-          <div class="tiny text-slate-600">
-            from: ${escapeHtml(ai.topicTitle || (topic ? topic.title : '(topic removed)'))}
-          </div>
-        </div>
-        <div class="flex gap-2">
-          <button data-id="${ai.id}" class="edit-ai tiny text-indigo-600">Edit</button>
-          <button data-id="${ai.id}" class="delete-ai tiny text-red-600">Delete</button>
-        </div>
-      </div>
-      <div class="flex gap-2 items-center">
-        <label class="tiny">Assign:</label>
-        <select data-id="${ai.id}" class="assign-select border rounded-md px-2 py-1">
-          <option value="">Unassigned</option>
-          ${renderActionAssigneeOptions()}
-        </select>
-        <label class="tiny ml-2">Due:</label>
-        <input data-id="${ai.id}" type="date" class="border rounded-md px-2 py-1" value="${ai.dueDate || ''}" />
-      </div>
-    `;
-
-    row.querySelector('.assign-select').value = ai.assignedToId || '';
-    row.querySelector('.assign-select').addEventListener('change', e => {
-      const id = e.target.getAttribute('data-id');
-      const item = actionItems.find(x => x.id === id);
-      if (item) item.assignedToId = e.target.value || null;
+  const acts=allActions().filter(a=>a.text.trim());
+  if(acts.length){
+    html+=`<h2 style="font-size:14px;color:#3a5878;text-transform:uppercase;letter-spacing:.08em;margin:20px 0 8px;">Action Items</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <thead>
+          <tr style="background:#3a5878;color:white;">
+            <th style="padding:7px 10px;text-align:left;width:30px;">#</th>
+            <th style="padding:7px 10px;text-align:left;">Action Item</th>
+            <th style="padding:7px 10px;text-align:left;">Assigned To</th>
+            <th style="padding:7px 10px;text-align:left;">Topic</th>
+          </tr>
+        </thead>
+        <tbody>`;
+    acts.forEach((a,i)=>{
+      const bg=i%2===0?'#eef1f5':'#ffffff';
+      html+=`<tr style="background:${bg};">
+        <td style="padding:6px 10px;border-bottom:1px solid #dce4ec;">${i+1}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #dce4ec;">${ex(a.text)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #dce4ec;">${ex(a.assign||'')}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #dce4ec;">${ex(a.topic||'')}</td>
+      </tr>`;
     });
+    html+=`</tbody></table>`;
+  }
 
-    row.querySelector('input[type="date"]').addEventListener('change', e => {
-      const id = e.target.getAttribute('data-id');
-      const item = actionItems.find(x => x.id === id);
-      if (item) item.dueDate = e.target.value || '';
+  html+=`</div>`;
+
+  // Write both HTML and plain text fallback to clipboard
+  const plain=html.replace(/<[^>]+>/g,' ').replace(/\s{2,}/g,' ').trim();
+  const blob1=new Blob([html],{type:'text/html'});
+  const blob2=new Blob([plain],{type:'text/plain'});
+  const item=new ClipboardItem({'text/html':blob1,'text/plain':blob2});
+
+  navigator.clipboard.write([item]).then(()=>{
+    const btn=document.getElementById('copyBtn');
+    btn.textContent='Copied!';
+    setTimeout(()=>btn.textContent='Copy Notes',2000);
+  }).catch(()=>{
+    // Fallback to plain text if ClipboardItem not supported
+    navigator.clipboard.writeText(plain).then(()=>{
+      const btn=document.getElementById('copyBtn');
+      btn.textContent='Copied (plain text)';
+      setTimeout(()=>btn.textContent='Copy Notes',2000);
     });
-
-    row.querySelector('.edit-ai').addEventListener('click', () => {
-      const item = actionItems.find(x => x.id === ai.id);
-      if (!item) return;
-
-      // 🔹 FIX: Handle missing topic with fallback
-      let t = topics.find(tt => tt.id === item.topicId);
-      if (!t && item.topicTitle) {
-        // Recreate temporary topic reference
-        t = { id: item.topicId, title: item.topicTitle, html: '' };
-      } else if (!t) {
-        alert('Topic no longer exists.');
-        return;
-      }
-
-      editingTopicId = t.id;
-      topicTitleEl.value = t.title;
-      quill.root.innerHTML = t.html;
-      quill.focus();
-
-      const nodes = quill.root.querySelectorAll('.action-item');
-      for (let n of nodes) {
-        if (n.innerText.trim() === item.text.trim()) {
-          const range = document.createRange();
-          range.selectNodeContents(n);
-          const sel = window.getSelection();
-          sel.removeAllRanges();
-          sel.addRange(range);
-          break;
-        }
-      }
-
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-
-    row.querySelector('.delete-ai').addEventListener('click', () => {
-      const idx = actionItems.findIndex(x => x.id === ai.id);
-      if (idx >= 0) {
-        if (!confirm('Delete this action item?')) return;
-        actionItems.splice(idx, 1);
-        renderActionItems();
-      }
-    });
-
-    actionItemsList.appendChild(row);
   });
 }
 
+// ── Export PDF ─────────────────────────────────
+async function exportPDF(){
+  save();
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'pt',format:'letter'});
+  const W=612,H=792,ml=48,mr=48,cw=W-ml-mr;
+  let y=48;
+  const tl=[58,88,120],sl=[44,53,64],sg=[100,120,136],gr=[154,168,180];
 
-  document.getElementById('markActionBtn').addEventListener('click',()=>{
-  const range = quill.getSelection();
-  if (!range || range.length === 0) {
-    alert('Select text in the notes to mark as an action item.');
-    return;
+  const pg=(n=18)=>{if(y+n>H-40){doc.addPage();y=48;}};
+
+  // Banner
+  doc.setFillColor(...tl);
+  doc.rect(0,0,W,44,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(15);
+  doc.text('CDU Meeting Notes Summary',ml,29);
+  y=62;
+
+  // Title
+  doc.setTextColor(...sl);
+  doc.setFont('helvetica','bold');
+  doc.setFontSize(14);
+  doc.text(S.title||'Untitled Meeting',ml,y); y+=18;
+
+  const dstr=S.date?new Date(S.date+'T12:00').toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):'';
+  const sel2=document.getElementById('mTime');
+  const tstr=sel2.options[sel2.selectedIndex]?.text||'';
+  if(dstr||tstr){
+    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(...sg);
+    doc.text([dstr,tstr].filter(Boolean).join('  •  '),ml,y);y+=14;
   }
-  const selectedText = quill.getText(range.index, range.length).trim();
-  if (!selectedText) {
-    alert('Selected text is empty.');
-    return;
+  y+=4;doc.setDrawColor(...gr);doc.line(ml,y,W-mr,y);y+=14;
+
+  // Attendees
+  if(S.attendees.length){
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...tl);
+    doc.text('ATTENDEES',ml,y);y+=12;
+    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(...sl);
+    const ws=doc.splitTextToSize(S.attendees.join('  •  '),cw);
+    doc.text(ws,ml,y);y+=ws.length*13+12;
   }
 
-// Mark as ActionBlot (adds ⭐ star via CSS)
-quill.formatText(range.index, range.length, 'action', true);
-
-
-  // Always attach to the currently edited or unsaved topic
-let topicId = editingTopicId || 'unsaved';
-let topicTitle = topicTitleEl.value.trim() || '(unsaved topic)';
-
-// If editing an existing topic, pull its title
-if (editingTopicId) {
-  const t = topics.find(x => x.id === editingTopicId);
-  if (t) topicTitle = t.title;
-}
-
-
-  // Create and store action item
-  actionItems.push({
-    id: uid('ai-'),
-    text: selectedText,
-    topicId,
-    topicTitle,
-    assignedToId: null,
-    dueDate: ''
+  // Topics
+  S.topics.forEach(t=>{
+    pg(28);
+    doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(...sl);
+    doc.text(t.title||'(Untitled Topic)',ml,y);y+=5;
+    doc.setDrawColor(...tl);doc.line(ml,y,W-mr,y);y+=10;
+    if(t.notes&&t.notes!=='<p><br></p>'){
+      doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(...sl);
+      const ls=doc.splitTextToSize(stripH(t.notes),cw);
+      ls.forEach(l=>{pg(13);doc.text(l,ml,y);y+=13;});
+      y+=4;
+    }
+    y+=6;
   });
 
-  renderActionItems();
-
-  // Scroll to bottom
-  setTimeout(() => {
-    const list = document.getElementById('actionItemsList');
-    if (list) list.scrollTop = list.scrollHeight;
-  }, 80);
-});
-
-
-  // ---------- Word Export ----------
-  function escapeHtmlRaw(s){ return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
-  function formatDateMDY(dateStr){ if(!dateStr) return ''; const d=new Date(dateStr); if(isNaN(d)) return dateStr; return `${d.getMonth()+1}/${d.getDate()}/${String(d.getFullYear()).slice(-2)}`; }
-function buildDocumentHtml(){ 
-  const title=meetingTitleEl.value.trim()||''; 
-  const date=meetingDateEl.value; 
-  const ampm = document.getElementById('startAmPm').value;
-const start = `${startHourEl.value}:${startMinuteEl.value} ${ampm}`;
-
-  const durMinutes=Number(durationEl.value||60); 
-  const hours=Math.floor(durMinutes/60); 
-  const durLabel=durMinutes>=60?`${hours} hr${hours>1?'s':''}`:`${durMinutes} min`; 
-  const attendeesHtml=attendees.length?'<ul>'+attendees.map(a=>`<li>${escapeHtml(a.name)}</li>`).join('')+'</ul>':''; 
-  
-  let topicsHtml=''; 
-  if(topics.length===0) 
-    topicsHtml='<div class="small">No topics added.</div>'; 
-  else 
-    topics.forEach((t)=>{
-      topicsHtml+=`<div style="border:2px solid #cbd5e1;border-radius:8px;padding:10px;margin-bottom:12px;background:#f8fafc;"><div style="font-weight:700;margin-bottom:6px;">${escapeHtml(t.title)}</div><div>${t.html||''}</div></div>`;
-    }); 
-
-  let aiHtml=''; 
-  if(actionItems.length===0) 
-    aiHtml='<div class="small">No action items flagged.</div>'; 
-  else{
-    aiHtml=`<table class="doc-table"><thead><tr><th style="width:50%;">Action</th><th>Topic</th><th>Assigned To</th><th>Due</th></tr></thead><tbody>`;
-    actionItems.forEach(ai=>{
-      const topic=topics.find(t=>t.id===ai.topicId);
-      const assigned=attendees.find(a=>a.id===ai.assignedToId);
-      aiHtml+=`<tr><td>${escapeHtml(ai.text)}</td><td>${escapeHtml(topic?topic.title:'(topic removed)')}</td><td>${escapeHtml(assigned?assigned.name:'')}</td><td>${escapeHtml(formatDateMDY(ai.dueDate)||'')}</td></tr>`;
+  // Actions table
+  const acts=allActions().filter(a=>a.text.trim());
+  if(acts.length){
+    pg(36);
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...tl);
+    doc.text('ACTION ITEMS',ml,y);y+=12;
+    const cols=[26,218,150,118];const rh=22;
+    doc.setFillColor(...tl);doc.rect(ml,y,cw,rh,'F');
+    doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(9);
+    let cx=ml;
+    ['#','Action Item','Assigned To','Topic'].forEach((h,i)=>{doc.text(h,cx+5,y+15);cx+=cols[i];});
+    y+=rh;
+    acts.forEach((a,i)=>{
+      pg(rh+4);
+      doc.setFillColor(...(i%2===0?[240,243,248]:[255,255,255]));
+      doc.rect(ml,y,cw,rh,'F');
+      doc.setDrawColor(...gr);doc.rect(ml,y,cw,rh,'S');
+      doc.setTextColor(...sl);doc.setFont('helvetica','normal');doc.setFontSize(9);
+      cx=ml;
+      [String(i+1),a.text,a.assign||'—',a.topic||''].forEach((c,ci)=>{
+        doc.text(doc.splitTextToSize(c,cols[ci]-8)[0]||'',cx+5,y+15);cx+=cols[ci];
+      });
+      y+=rh;
     });
-    aiHtml+='</tbody></table>';
-  } 
+  }
 
- const docCss = `<style>
-body {
-  font-family: Arial, Helvetica, sans-serif;
-  margin: 0.5; /* remove default body margin */
-  color: #111827;
-}
-h1 { font-size: 20px; margin-bottom: 4px; text-align: center; }
-h2.subtitle { font-size: 14px; text-align: center; color: #374151; margin-top: 0; margin-bottom: 18px; }
-.doc-table { border-collapse: collapse; width: 100%; margin-top: 8px; }
-.doc-table th { text-align: left; background: #f3f4f6; padding: 8px; border: 1px solid #ddd; }
-.doc-table td { padding: 8px; border: 1px solid #ddd; vertical-align: top; }
-.action-item { background: #fff7cc; padding: 0 2px; border-radius: 2px; }
-.wrapper { margin: 0.5in; } /* Narrow margins applied via wrapper */
-</style>`;
-  let html = `<!doctype html><html><head><meta charset="utf-8"/><title>${escapeHtmlRaw(title||'Meeting Notes')}</title>${docCss}</head><body>`;
+  doc.setTextColor(...sg);doc.setFontSize(8);
+  doc.text(`Generated ${new Date().toLocaleString()}`,ml,H-20);
 
-// 🔹 CDU Logo + Header Row (table layout for Word compatibility)
-html += `
-  <table style="width:100%; border-collapse:collapse; margin-bottom:12px;">
-    <tr>
-      <td style="text-align:left; vertical-align:middle;">
-        <h1 style="font-size:22px; margin:0;">Meeting Notes</h1>
-      </td>
-      <td style="text-align:right; vertical-align:middle; width:80px;">
-        <img 
-          src="https://raw.githubusercontent.com/markevansjrcityphila-Evansm1/CDU-Meeting-Notes/refs/heads/main/image.png"
-          alt="CDU Logo"
-          width="75"
-          height="75"
-          style="width:75px; height:75px; object-fit:contain; border:none;"
-        />
-      </td>
-    </tr>
-  </table>
-
-  <h2 class="subtitle">${escapeHtmlRaw(title)}</h2>
-  <div>
-    <strong>Date:</strong> ${escapeHtmlRaw(formatDateMDY(date))} &nbsp;&nbsp;
-    <strong>Start:</strong> ${escapeHtmlRaw(start)} &nbsp;&nbsp;
-    <strong>Duration:</strong> ${escapeHtmlRaw(durLabel)}
-  </div>
-  <div style="margin-top:8px;"><strong>Attendees:</strong> ${attendeesHtml}</div>
-  <hr style="margin:12px 0;">
-  <h3>Topics</h3>${topicsHtml}
-  <h3>Action Items</h3>${aiHtml}
-  <div style="margin-top:18px;font-size:12px;color:#6b7280;">
-    Document generated from CDU Meeting Notes Generator Program
-  </div>
-</body></html>`;
-
-return html;
-
-
-return html;
-
-
+  const fn=(S.title||'CDU-Meeting-Notes').replace(/\s+/g,'-').replace(/[^a-zA-Z0-9-]/g,'');
+  doc.save(fn+'.pdf');
 }
 
 
-  function exportWordDoc(){ const html=buildDocumentHtml(); const blob=new Blob(['\ufeff',html],{type:'application/msword'}); const docTitle=meetingTitleEl.value||'Meeting Notes'; const safeTitle=docTitle.replace(/[\\\/:*?"<>|]+/g,''); const fileName=`Meeting Notes (${safeTitle}).doc`; const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url;a.download=fileName;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500); }
-  generateWordBtn.addEventListener('click',()=>{if(!confirm('Generate Word document now?')) return; exportWordDoc();});
+// ── Export DOCX ────────────────────────────────
+async function exportDOCX(){
+  save();
+  try{
+    const sel2=document.getElementById('mTime');
+    const tstr=sel2.options[sel2.selectedIndex]?.text||'';
+    const dstr=S.date?new Date(S.date+'T12:00').toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'}):'';
+    const acts=allActions().filter(a=>a.text.trim());
 
-  initialRender();
+    const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const bold='<w:b/><w:bCs/>';
+    const rFonts='<w:rFonts w:ascii="Arial" w:hAnsi="Arial"/>';
+    const run=(text,extras='')=>`<w:r><w:rPr>${extras}</w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`;
+    const para=(runs,ppr='',sp='<w:spacing w:before="80" w:after="80"/>')=>`<w:p><w:pPr>${ppr}${sp}</w:pPr>${runs}</w:p>`;
+    const bdrBottom=(col,sz=12)=>`<w:pBdr><w:bottom w:val="single" w:sz="${sz}" w:space="4" w:color="${col}"/></w:pBdr>`;
+
+    const cell=(text,bg,isHeader=false)=>`<w:tc>
+      <w:tcPr>
+        <w:tcW w:w="0" w:type="auto"/>
+        <w:shd w:val="clear" w:color="auto" w:fill="${bg}"/>
+        <w:tcMar><w:top w:w="80" w:type="dxa"/><w:bottom w:w="80" w:type="dxa"/><w:left w:w="120" w:type="dxa"/><w:right w:w="120" w:type="dxa"/></w:tcMar>
+      </w:tcPr>
+      <w:p><w:r><w:rPr>${isHeader?bold:''}<w:color w:val="${isHeader?'FFFFFF':'2C3540'}"/><w:sz w:val="18"/><w:szCs w:val="18"/>${rFonts}</w:rPr>
+      <w:t xml:space="preserve">${esc(text)}</w:t></w:r></w:p></w:tc>`;
+
+    let body='';
+
+    // Header title
+    body+=para(run('CDU Meeting Notes Summary',`${bold}<w:color w:val="3A5878"/><w:sz w:val="36"/><w:szCs w:val="36"/>${rFonts}`),
+      bdrBottom('3A5878',16),'<w:spacing w:before="0" w:after="120"/>');
+
+    // Meeting title
+    body+=para(run(S.title||'Untitled Meeting',`${bold}<w:color w:val="2C3540"/><w:sz w:val="28"/><w:szCs w:val="28"/>${rFonts}`),
+      '','<w:spacing w:before="160" w:after="60"/>');
+
+    // Date + time
+    if(dstr||tstr)
+      body+=para(run([dstr,tstr].filter(Boolean).join('   \u2022   '),`<w:color w:val="7A8898"/><w:sz w:val="18"/><w:szCs w:val="18"/>${rFonts}`),
+        '','<w:spacing w:before="0" w:after="160"/>');
+
+    // Attendees
+    if(S.attendees.length){
+      body+=para(run('ATTENDEES',`${bold}<w:color w:val="3A5878"/><w:sz w:val="18"/><w:szCs w:val="18"/><w:caps/>${rFonts}`),
+        '','<w:spacing w:before="120" w:after="60"/>');
+      body+=para(run(S.attendees.join('   \u2022   '),`<w:color w:val="2C3540"/><w:sz w:val="20"/><w:szCs w:val="20"/>${rFonts}`),
+        '','<w:spacing w:before="0" w:after="200"/>');
+    }
+
+    // Topics (reverse so oldest first in doc)
+    [...S.topics].reverse().forEach(t=>{
+      body+=para(run(t.title||'(Untitled Topic)',`${bold}<w:color w:val="2C3540"/><w:sz w:val="24"/><w:szCs w:val="24"/>${rFonts}`),
+        bdrBottom('3A5878',8),'<w:spacing w:before="200" w:after="80"/>');
+      if(t.notes&&t.notes.trim()&&t.notes!=='<p><br></p>'){
+        stripH(t.notes).split('\n').filter(l=>l.trim()).forEach(line=>{
+          body+=para(run(line,`<w:color w:val="2C3540"/><w:sz w:val="20"/><w:szCs w:val="20"/>${rFonts}`),
+            '','<w:spacing w:before="0" w:after="40"/>');
+        });
+      }
+      body+=para('','','<w:spacing w:before="0" w:after="80"/>');
+    });
+
+    // Action items table
+    if(acts.length){
+      body+=para(run('ACTION ITEMS',`${bold}<w:color w:val="3A5878"/><w:sz w:val="20"/><w:szCs w:val="20"/><w:caps/>${rFonts}`),
+        '','<w:spacing w:before="240" w:after="100"/>');
+      let tbl=`<w:tbl>
+        <w:tblPr>
+          <w:tblW w:w="9360" w:type="dxa"/>
+          <w:tblBorders>
+            <w:top w:val="single" w:sz="2" w:color="9AA8B4"/>
+            <w:left w:val="single" w:sz="2" w:color="9AA8B4"/>
+            <w:bottom w:val="single" w:sz="2" w:color="9AA8B4"/>
+            <w:right w:val="single" w:sz="2" w:color="9AA8B4"/>
+            <w:insideH w:val="single" w:sz="2" w:color="9AA8B4"/>
+            <w:insideV w:val="single" w:sz="2" w:color="9AA8B4"/>
+          </w:tblBorders>
+          <w:tblLayout w:type="fixed"/>
+        </w:tblPr>
+        <w:tblGrid>
+          <w:gridCol w:w="640"/><w:gridCol w:w="3700"/><w:gridCol w:w="2520"/><w:gridCol w:w="2500"/>
+        </w:tblGrid>
+        <w:tr>${cell('#','3A5878',true)}${cell('Action Item','3A5878',true)}${cell('Assigned To','3A5878',true)}${cell('Topic','3A5878',true)}</w:tr>`;
+      acts.forEach((a,i)=>{
+        const bg=i%2===0?'EEF1F5':'F8F9FB';
+        tbl+=`<w:tr>${cell(String(i+1),bg)}${cell(a.text,bg)}${cell(a.assign||'',bg)}${cell(a.topic||'',bg)}</w:tr>`;
+      });
+      tbl+=`</w:tbl>`;
+      body+=tbl;
+    }
+
+    const documentXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+<w:body>${body}
+<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>
+<w:pgMar w:top="1080" w:right="1080" w:bottom="1080" w:left="1080"/></w:sectPr>
+</w:body></w:document>`;
+
+    const relsXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`;
+
+    const stylesXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults><w:rPrDefault><w:rPr>
+    <w:rFonts w:ascii="Arial" w:hAnsi="Arial"/>
+    <w:sz w:val="20"/><w:color w:val="2C3540"/>
+  </w:rPr></w:rPrDefault></w:docDefaults>
+</w:styles>`;
+
+    const contentTypesXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>`;
+
+    const rootRelsXml=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+    const zip=new JSZip();
+    zip.file('[Content_Types].xml',contentTypesXml);
+    zip.file('_rels/.rels',rootRelsXml);
+    zip.file('word/document.xml',documentXml);
+    zip.file('word/_rels/document.xml.rels',relsXml);
+    zip.file('word/styles.xml',stylesXml);
+
+    const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+    const fn=(S.title||'CDU-Meeting-Notes').replace(/\s+/g,'-').replace(/[^a-zA-Z0-9-]/g,'');
+    saveAs(blob,fn+'.docx');
+
+  }catch(err){console.error('DOCX export error:',err);alert('Export failed: '+err.message);}
+}
+
 </script>
 </body>
 </html>
+
